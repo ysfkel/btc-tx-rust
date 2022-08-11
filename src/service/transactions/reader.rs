@@ -1,12 +1,13 @@
 use serde::Deserialize;
 
-use crate::service::models::{Transaction, Transactions};
+use crate::service::transactions::models::{Transaction, Transactions};
+use std::env;
 use std::fmt::format;
 use std::fs::{self, File};
 use std::io::{self, BufRead};
 use std::io::{BufReader, Read};
 
-pub fn read_transactions() -> Result<Vec<Transaction>, io::Error> {
+pub fn read() -> Result<Vec<Transaction>, io::Error> {
     let dir = "files/tx";
     let mut tx: Vec<Transaction> = vec![];
     for entry in fs::read_dir(dir)? {
@@ -17,19 +18,14 @@ pub fn read_transactions() -> Result<Vec<Transaction>, io::Error> {
             .to_str()
             .expect("failed to concert os_str to str");
         let f = format!("{}/{}", dir, file_name);
-        let data = read_file(&f);
-        read_file_2(&f);
-        let t: Transactions = serde_json::from_str(data.as_str()).unwrap();
-        tx = t.transactions;
-        // std::fs::remove_file(f)?;
-        println!("tx read {}", tx.len());
+        let data = btc_tx(&f);
+        let mut t: Transactions = serde_json::from_str(data.as_str()).unwrap();
+        tx.append(&mut t.transactions);
     }
-    println!("read_transactions completed");
-
     Ok(tx)
 }
 
-fn read_file(filepath: &str) -> String {
+fn btc_tx(filepath: &str) -> String {
     let file = File::open(filepath).expect("could not open file");
     let mut buffered_reader = BufReader::new(file);
     let mut contents = String::new();

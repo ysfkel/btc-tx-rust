@@ -1,56 +1,39 @@
-use crate::service::models::Transaction;
-use crate::service::schema::transactions;
-use crate::service::schema::transactions::dsl::transactions as transactions_orm;
+use crate::service::transactions::models::Transaction;
+use crate::service::transactions::schema::transactions;
+use crate::service::transactions::schema::transactions::dsl::transactions as transactions_orm;
+use diesel::dsl;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 
-impl Transaction {
-    pub fn get(id: String, conn: &PgConnection) -> Vec<Transaction> {
-        transactions_orm
-            .find(id)
-            .load::<Transaction>(conn) // cast to book struct
-            .expect("Error loading book")
+pub type DbResult = Result<Vec<Transaction>, diesel::result::Error>;
+
+pub struct Repository<'a> {
+    pub conn: &'a PgConnection,
+}
+
+impl<'a> Repository<'a> {
+    pub fn new(conn: &'a PgConnection) -> Self {
+        Self { conn }
+    }
+    pub fn get(&self, id: String) -> DbResult {
+        transactions_orm.find(id).load::<Transaction>(self.conn)
     }
 
-    pub fn get_all(conn: &PgConnection) -> Vec<Transaction> {
+    pub fn get_all(&self) -> DbResult {
         transactions_orm
             .order(transactions::txid.desc())
-            .load::<Transaction>(conn)
-            .expect("error loading books")
+            .load::<Transaction>(self.conn)
     }
 
-    // pub fn update_by_id(id: i32, conn: &PgConnection, book: NewBook) -> bool {
-    //     use super::schema::transactions::dsl::{author as a, published as p, title as t};
-    //     let NewBook {
-    //         title,
-    //         author,
-    //         published,
-    //     } = book;
-
-    //     diesel::update(all_books.find(id))
-    //         .set((a.eq(author), p.eq(published), t.eq(title)))
-    //         .get_result::<Book>(conn)
-    //         .is_ok()
-    // }
-
-    pub fn insert(tx: Transaction, conn: &PgConnection) -> bool {
+    pub fn insert(&self, tx: Transaction) -> Result<usize, diesel::result::Error> {
         diesel::insert_into(transactions::table)
             .values(&tx)
-            .execute(conn)
-            .is_ok()
+            .execute(self.conn)
     }
 
-    // pub fn delete_by_id(id: i32, conn: &PgConnection) -> bool {
-    //     if Book::get(id, conn).is_empty() {
-    //         return false;
-    //     };
-    //     diesel::delete(all_books.find(id)).execute(conn).is_ok()
-    // }
-
-    // pub fn get_by_author(author: &str, conn: &PgConnection) -> Vec<Book> {
-    //     all_books
-    //         .filter(books::author.eq(author))
-    //         .load::<Book>(conn)
-    //         .expect("Error loading books by author")
-    // }
+    pub fn insert_all(&self, tx: Vec<Transaction>) -> Result<usize, diesel::result::Error> {
+        diesel::insert_into(transactions::table)
+            .values(&tx)
+            .execute(self.conn)
+    }
 }

@@ -4,3 +4,5 @@ extern crate diesel;
 extern crate diesel_codegen;
 
 pub mod service;
+
+pub mod db;
