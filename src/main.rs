@@ -1,58 +1,48 @@
-#[macro_use]
-extern crate diesel;
-#[macro_use]
-extern crate diesel_codegen;
+extern crate btc_tx;
 extern crate dotenv;
-extern crate read_file;
 
-#[macro_use]
-extern crate serde_derive;
-#[macro_use]
-extern crate serde_json;
-
-use dotenv::dotenv;
-use std::fs::{self, File, ReadDir};
-use std::io;
-
+use btc_tx::db;
+use btc_tx::service::service::Service;
+use btc_tx::service::transactions::reader as tx_reader;
+use btc_tx::service::transactions::repository::Repository as TransactionRepository;
+use btc_tx::service::users;
+use btc_tx::service::users::repository::Repository as UserRepository;
 use diesel::{Connection, PgConnection};
-use read_file::service::{models::Transaction, schema, tx_reader, tx_repository};
-use std::env;
-
-fn main() {
+use dotenv::dotenv;
+mod process_transactions;
+use diesel::result::DatabaseErrorKind;
+#[tokio::main]
+async fn main() {
     dotenv().ok();
 
-    let database_url = env::var("DATABASE_URL").expect("set DATABASE_URL");
-    let conn = PgConnection::establish(&database_url).unwrap();
+    let database_url = std::env::var("POSTGRES_URL").expect("set POSTGRES_URL");
+    // run database migrations
+    db::migration::run_migrations(&database_url)
+        .await
+        .expect("postgress migrations error");
 
-    let transaction = Transaction {
-        txid: String::from("id2"),
-        account: String::from("test"),
-        address: String::from("test"),
-        category: String::from("test"),
-        amount: 29299.,
-        label: String::from("test"),
-        confirmations: 2,
-        blockhash: String::from("test"),
-        blockindex: 2,
-        blocktime: 3,
-        vout: 2,
-        time: 3,
-        // user_id: "id".to_owned(),
-        timereceived: 3,
+    let conn = PgConnection::establish(&database_url)
+        .expect("AppError: failed to establish database connecion");
+
+    // Read JSON files
+    let transactions = tx_reader::read().expect("failed to read transactions");
+    let users_list = users::reader::read().expect("failed to read users");
+
+    // save users to database
+    let user_repo = UserRepository::new(&conn);
+    // handling unique key violation if test is re-run
+    match user_repo.insert_all(users_list.clone()) {
+        Ok(res) => println!("users inserted successfully"),
+        Err(e) => println!("{:?}", e),
     };
 
-    let tx = tx_reader::read_transactions().unwrap();
-    // for t in tx {
-    //     println!("display:: {}", t.address);
-    //     if Transaction::insert(t, &conn) {
-    //         println!("successs")
-    //     } else {
-    //         println!("failed")
-    //     }
-    // }
-    // if Transaction::insert(transaction, &conn) {
-    //     print!("successs")
-    // } else {
-    //     print!("failed")
-    // }
+    // initialize service
+    let tx_repo = TransactionRepository::new(&conn);
+    let tx_service = Service::new(&tx_repo);
+    //save transactions
+    tx_service
+        .add_transactions(transactions.clone())
+        .expect("failed to insert transactions");
+    // print transactions
+    process_transactions::get_transactions_aggregate(transactions, users_list);
 }

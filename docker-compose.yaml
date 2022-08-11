@@ -1,0 +1,45 @@
+version: "3.4"
+services:
+  backend:
+    container_name: "backend"
+    build:
+      dockerfile: Dockerfile
+      context: .
+      cache_from:
+        - rust:1.42.0
+    restart: on-failure
+    tty: true
+    depends_on:
+      postgres:
+        condition: service_healthy  
+    environment:
+      - POSTGRES_URL=postgres://docker:docker@postgres:5432/myblocksdb?sslmode=disable
+      - PG_POOL_SIZE=10
+    networks:
+      - backend-network
+    volumes:
+      - type: bind
+        source: ./
+        target: /app
+    ports:
+      - "8000:8000"
+  # Middleware
+  postgres:
+    image: postgres:12
+    environment:
+      # POSTGRES_USER: docker
+      POSTGRES_PASSWORD: docker 
+    volumes:
+      - ./docker_postgres_init.sql:/docker-entrypoint-initdb.d/docker_postgres_init.sql
+    networks:
+      - backend-network
+    ports:
+      - "5400:5432"
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-q", "-d", "myblocksdb", "-U", "docker" ]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+networks:
+  backend-network:
+    driver: bridge

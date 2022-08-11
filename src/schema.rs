@@ -1,13 +1,4 @@
 table! {
-    books (id) {
-        id -> Int4,
-        title -> Varchar,
-        author -> Varchar,
-        published -> Bool,
-    }
-}
-
-table! {
     transactions (txid) {
         txid -> Varchar,
         account -> Varchar,
@@ -28,13 +19,8 @@ table! {
 table! {
     users (id) {
         id -> Varchar,
-        first_name -> Varchar,
-        last_name -> Varchar,
+        name -> Varchar,
     }
 }
 
-allow_tables_to_appear_in_same_query!(
-    books,
-    transactions,
-    users,
-);
+allow_tables_to_appear_in_same_query!(transactions, users,);

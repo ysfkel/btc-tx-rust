@@ -1,27 +1,30 @@
-use crate::service::models::User;
-use crate::service::schema::users;
-use crate::service::schema::users::dsl::users as users_orm;
+use crate::service::users::models::User;
+use crate::service::users::schema::users;
+use crate::service::users::schema::users::dsl::users as users_orm;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 
-impl User {
-    pub fn get(id: String, conn: &PgConnection) -> Vec<User> {
-        users_orm
-            .find(id)
-            .load::<User>(conn) // cast to book struct
-            .expect("Error loading book")
+type DbResult = Result<Vec<User>, diesel::result::Error>;
+
+pub struct Repository<'a> {
+    pub conn: &'a PgConnection,
+}
+
+impl<'a> Repository<'a> {
+    pub fn new(conn: &'a PgConnection) -> Self {
+        Self { conn }
+    }
+    pub fn get(&self, id: String) -> DbResult {
+        users_orm.find(id).load::<User>(self.conn)
     }
 
-    pub fn get_all(conn: &PgConnection) -> Vec<User> {
-        users_orm
-            .order(users::id.desc())
-            .load::<User>(conn)
-            .expect("error loading books")
+    pub fn get_all(&self) -> DbResult {
+        users_orm.order(users::id.desc()).load::<User>(self.conn)
     }
-    pub fn insert(tx: User, conn: &PgConnection) -> bool {
+
+    pub fn insert_all(&self, tx: Vec<User>) -> Result<usize, diesel::result::Error> {
         diesel::insert_into(users::table)
             .values(&tx)
-            .execute(conn)
-            .is_ok()
+            .execute(self.conn)
     }
 }
